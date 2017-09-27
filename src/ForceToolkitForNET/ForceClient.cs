@@ -209,11 +209,11 @@ namespace Salesforce.Force
         // BULK METHODS
 
         public async Task<List<BatchInfoResult>> RunJobAsync<T>(string objectName, BulkConstants.OperationType operationType,
-            IEnumerable<ISObjectList<T>> recordsLists)
+            IEnumerable<ISObjectList<T>> recordsLists, string externalIdFieldName = null)
         {
             if (recordsLists == null) throw new ArgumentNullException("recordsLists");
 
-            var jobInfoResult = await CreateJobAsync(objectName, operationType);
+            var jobInfoResult = await CreateJobAsync(objectName, operationType, externalIdFieldName);
             var batchResults = new List<BatchInfoResult>();
             foreach (var recordList in recordsLists)
             {
@@ -224,12 +224,12 @@ namespace Salesforce.Force
         }
 
         public async Task<List<BatchResultList>> RunJobAndPollAsync<T>(string objectName, BulkConstants.OperationType operationType,
-            IEnumerable<ISObjectList<T>> recordsLists)
+            IEnumerable<ISObjectList<T>> recordsLists, string externalIdFieldName = null)
         {
             const float pollingStart = 1000;
             const float pollingIncrease = 2.0f;
 
-            var batchInfoResults = await RunJobAsync(objectName, operationType, recordsLists);
+            var batchInfoResults = await RunJobAsync(objectName, operationType, recordsLists, externalIdFieldName);
 
             var currentPoll = pollingStart;
             var finishedBatchInfoResults = new List<BatchInfoResult>();
@@ -265,15 +265,18 @@ namespace Salesforce.Force
             return batchResults;
         }
 
-        public async Task<JobInfoResult> CreateJobAsync(string objectName, BulkConstants.OperationType operationType)
+        public async Task<JobInfoResult> CreateJobAsync(string objectName, BulkConstants.OperationType operationType, string externalIdFieldName = null)
         {
             if (string.IsNullOrEmpty(objectName)) throw new ArgumentNullException("objectName");
+            if (BulkConstants.OperationType.Upsert.Equals(operationType)
+                && string.IsNullOrEmpty(externalIdFieldName)) throw new ArgumentNullException("externalIdFieldName");
 
             var jobInfo = new JobInfo
             {
                 ContentType = "XML",
                 Object = objectName,
-                Operation = operationType.Value()
+                Operation = operationType.Value(),
+                ExternalIdFieldName = externalIdFieldName
             };
 
             return await _xmlHttpClient.HttpPostAsync<JobInfoResult>(jobInfo, "/services/async/{0}/job");
